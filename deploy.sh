@@ -3,6 +3,8 @@ sam_template_file='template.yaml'
 cf_stack_name=focusmark-"$deployed_environment"-cf-api-workbook-domainmapping
 cf_template_file='domain-mapping.yaml'
 
+npm install lambda --prefix lambda
+
 sam deploy \
   --template-file $sam_template_file \
   --stack-name $sam_stack_name \
