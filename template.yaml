@@ -1,0 +1,304 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'Workbook Resource Micro-service for FocusMark REST API'
+  
+Globals:
+  Function:
+    Timeout: 10
+
+Parameters:
+  TargetEnvironment:
+    Description: 'Examples can be dev, test or prod'
+    Type: 'String'
+
+Resources:  
+  WorkbookTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Join [ "-", [ 'focusmark', !Ref TargetEnvironment, 'sns', 'workbook' ] ]
+      TopicName: !Join [ "-", [ 'focusmark', !Ref TargetEnvironment, 'sns', 'workbook' ] ]
+      
+  # Auth setup example from https://github.com/awslabs/serverless-application-model/blob/master/examples/2016-10-31/api_cognito_auth/template.yaml
+  WorkbookApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref TargetEnvironment
+      Name: !Join [ "-", [ 'focusmark', !Ref TargetEnvironment, 'agw', 'workbook' ] ]
+      Auth:
+        DefaultAuthorizer: CognitoGetWorkbookAuthorizer
+        Authorizers:
+          CognitoPostWorkbookAuthorizer:
+            UserPoolArn: {'Fn::ImportValue': !Sub 'focusmark-${TargetEnvironment}-userpool'}
+            Identity: 
+              Header: 'Authorization'
+            AuthorizationScopes:
+              - "app.focusmark.workbook/workbook.write"
+          CognitoGetWorkbookAuthorizer:
+            UserPoolArn: {'Fn::ImportValue': !Sub 'focusmark-${TargetEnvironment}-userpool'}
+            Identity: 
+              Header: 'Authorization'
+            AuthorizationScopes:
+              - "app.focusmark.workbook/workbook.read"
+            
+  WorkbookResourceServer:
+    Type: AWS::Cognito::UserPoolResourceServer
+    Properties:
+      UserPoolId: {'Fn::ImportValue': !Sub 'focusmark-${TargetEnvironment}-userpoolid'}
+      Identifier: !Sub "app.focusmark.workbook"
+      Name: !Sub "focusmark-${TargetEnvironment}-cognitoresource-workbook"
+      Scopes:
+        - ScopeName: "workbook.write"
+          ScopeDescription: "Create and modify Workbooks"
+        - ScopeName: "workbook.read"
+          ScopeDescription: "Read existing Workbooks"
+      
+  WorkbookPostLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: !Join [ " ", [ 'Allows publishing to ', !Ref WorkbookTopic ] ]
+      RoleName: !Join [ "-", [ 'focusmark', !Ref TargetEnvironment, 'role', 'workbook_post' ]]
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Policies:
+        - PolicyName: !Join [ "-", [ 'focusmark', !Ref TargetEnvironment, 'policy', 'workbook_post' ]]
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: 'sns:Publish'
+                Resource: !Ref WorkbookTopic
+              - Effect: Allow
+                Action: 
+                  - 'xray:CreateGroup'
+                  - 'xray:CreateSamplingRule'
+                Resource: 
+                  - 'arn:aws:xray:*:*:group/*/*'
+                  - 'arn:aws:xray:*:*:sampling-rule/*'
+              - Effect: Allow
+                Action:
+                  - 'xray:PutTelemetryRecords'
+                  - 'xray:PutTraceSegments'
+                Resource: '*'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+        
+  WorkbookGetAllLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: !Join [ " ", [ 'Allows querying from ', !Ref WorkbookTable ] ]
+      RoleName: !Join [ "-", [ 'focusmark', !Ref TargetEnvironment, 'role', 'workbook_getall' ]]
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Policies:
+        - PolicyName: !Join [ "-", [ 'focusmark', !Ref TargetEnvironment, 'policy', 'workbook_getall' ]]
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - 'dynamodb:Query'
+                  - 'dynamodb:GetItem'
+                Resource: !GetAtt WorkbookTable.Arn
+              - Effect: Allow
+                Action: 
+                  - 'xray:CreateGroup'
+                  - 'xray:CreateSamplingRule'
+                Resource: 
+                  - 'arn:aws:xray:*:*:group/*/*'
+                  - 'arn:aws:xray:*:*:sampling-rule/*'
+              - Effect: Allow
+                Action:
+                  - 'xray:PutTelemetryRecords'
+                  - 'xray:PutTraceSegments'
+                Resource: '*'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      
+  WorkbookSubscriberLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: !Join [ " ", [ 'Allows querying from ', !Ref WorkbookTable ] ]
+      RoleName: !Join [ "-", [ 'focusmark', !Ref TargetEnvironment, 'role', 'workbook_created' ]]
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Policies:
+        - PolicyName: !Join [ "-", [ 'focusmark', !Ref TargetEnvironment, 'policy', 'workbook_created' ]]
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - 'dynamodb:PutItem'
+                  - 'dynamodb:GetItem'
+                Resource: !GetAtt WorkbookTable.Arn
+              - Effect: Allow
+                Action: 
+                  - 'xray:CreateGroup'
+                  - 'xray:CreateSamplingRule'
+                Resource: 
+                  - 'arn:aws:xray:*:*:group/*/*'
+                  - 'arn:aws:xray:*:*:sampling-rule/*'
+              - Effect: Allow
+                Action:
+                  - 'xray:PutTelemetryRecords'
+                  - 'xray:PutTraceSegments'
+                Resource: '*'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+        
+  WorkbookPostLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: 'lambda/'
+      Handler: lambda-workbook-post.handler
+      Environment:
+        Variables:
+          deployed_environment: !Ref TargetEnvironment
+          sns_create_workbook_topic: !Ref WorkbookTopic
+      FunctionName: !Join [ "-", [ 'focusmark', !Ref TargetEnvironment, 'lambda', 'workbook_post' ] ]
+      Runtime: nodejs12.x
+      Tracing: Active
+      Role: !GetAtt WorkbookPostLambdaRole.Arn
+      Events:
+        PostEvent:
+          Type: Api
+          Properties:
+            Auth:
+              Authorizer: CognitoPostWorkbookAuthorizer
+            Path: /
+            Method: post
+            RestApiId:
+              Ref: WorkbookApi
+              
+  WorkbookGetLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: 'lambda/'
+      Handler: lambda-workbook-get.handler
+      Environment:
+        Variables:
+          deployed_environment: !Ref TargetEnvironment
+          sns_create_workbook_topic: !Ref WorkbookTopic
+          dynamodb_workbookTable: !Ref WorkbookTable
+          dynamodb_endpointUrl: '' # Here to expose it to SAM Containers for local debugging... Not used when deployed.
+      FunctionName: !Join [ "-", [ 'focusmark', !Ref TargetEnvironment, 'lambda', 'workbook_get' ] ]
+      Runtime: nodejs12.x
+      Tracing: Active
+      Role: !GetAtt WorkbookGetAllLambdaRole.Arn
+      Events:
+        GetByIdEvent:
+          Type: Api
+          Properties:
+            Path: /{workbookId}
+            Method: get
+            RestApiId:
+              Ref: WorkbookApi
+        GetAllEvent:
+          Type: Api
+          Properties:
+            Path: /
+            Method: get
+            RestApiId:
+              Ref: WorkbookApi
+              
+  WorkbookLocalSeederLambda:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: 'lambda/'
+      Handler: lambda-workbook-localseeder.handler
+      Runtime: nodejs12.x
+      FunctionName: !Join [ "-", [ 'focusmark', !Ref TargetEnvironment, 'lambda', 'workbook_dataseeder' ] ]
+      Description: 'Seeds the DynamoDb table for Workbooks with fake data.'
+      Environment:
+        Variables:
+          dynamodb_endpointUrl: '' # Here to expose it to SAM Containers for local debugging... Not used when deployed.
+          dynamodb_workbookTable: !Ref WorkbookTable
+          deployed_environment: !Ref TargetEnvironment
+      MemorySize: 256
+      Timeout: 300
+              
+  WorkbookSubscriberLambda:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: 'lambda/'
+      Handler: lambda-workbook-eventprocessor.handler
+      Runtime: nodejs12.x
+      Role: !GetAtt WorkbookSubscriberLambdaRole.Arn
+      FunctionName: !Join [ "-", [ 'focusmark', !Ref TargetEnvironment, 'lambda', 'workbook_created' ] ]
+      Description: 'Consumes a new workbook from an SNS Topic and stores it in a datastore.'
+      Environment:
+        Variables:
+          dynamodb_endpointUrl: '' # Here to expose it to SAM Containers for local debugging... Not used when deployed.
+          dynamodb_workbookTable: !Ref WorkbookTable
+      MemorySize: 128
+      Timeout: 900
+      Tracing: Active
+
+  WorkbookTopicLambdaSubscription:
+    Type: AWS::SNS::Subscription
+    Properties: 
+      Protocol: lambda
+      Endpoint: !GetAtt WorkbookSubscriberLambda.Arn
+      TopicArn: !Ref WorkbookTopic
+      
+  WorkbookSubscriberLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref WorkbookSubscriberLambda
+      Action: lambda:InvokeFunction
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref WorkbookTopic
+
+  WorkbookTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Join [ "-", [ 'focusmark', !Ref TargetEnvironment, 'dynamo', 'workbook' ] ]
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: workbookId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: workbookId
+          KeyType: RANGE
+      ProvisionedThroughput: 
+        ReadCapacityUnits: 2
+        WriteCapacityUnits: 2
+
+Outputs:
+  WorkbookEndpoint:
+    Description: "API endpoint for Workbook resources"
+    Value: !Sub "https://${WorkbookApi}.execute-api.${AWS::Region}.amazonaws.com/${TargetEnvironment}/workbook/"
+  WorkbookCreatedTopic:
+    Description: "SNS Topic for publishing notifications relatled to Workbooks"
+    Value: !Ref WorkbookTopic
+    Export:
+      Name: !Sub "${AWS::StackName}-WorkbookTopic"
+  WorkbookApiId:
+    Description: "ID of the Workbook API resource"
+    Value: !Ref WorkbookApi
+    Export:
+      Name: !Sub 'focusmark-${TargetEnvironment}-apigw-workbookapi'

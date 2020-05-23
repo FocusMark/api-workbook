@@ -1,0 +1,27 @@
+{
+  "Records": [
+    {
+      "EventSource": "aws:sns",
+      "EventVersion": "1.0",
+      "EventSubscriptionArn": "arn:aws:sns:us-east-1:{{{accountId}}}:ExampleTopic",
+      "Sns": {
+        "Type" : "Notification",
+        "MessageId" : "9dd14695-fe26-551f-afde-11d7341ef800",
+        "TopicArn" : "arn:aws:sns:us-east-1:223237870883:test-sns",
+        "Subject" : "create-workbook",
+        "Message" : "{\"workbookId\":\"92faa51e-6d8a-4046-beed-995f7acd701b\",\"isFlagged\":false,\"startDate\":0,\"targetDate\":0,\"priority\":\"None\",\"percentageCompleted\":0,\"createdAt\":1590216696576,\"updatedAt\":1590216696576,\"userId\":\"1f17ba66-fa8c-4cb0-a3d3-72a0b38f554f\",\"owner\":\"foobar\",\"title\":\"Hello World\",\"path\":\"/Home Stuff\"}",
+        "Timestamp" : "2020-05-23T06:51:36.636Z",
+        "SignatureVersion" : "1",
+        "Signature" : "hWm5/uM80m6G+80QuO6WFDtSOeMPzI/ijw0s54BvqibRef4cdHMDkJ87eSHCYya4EUOPPl1V/hdso+p1Cs+0r4EDqNcESEiLeWQQSQZpLM9giVBez/xB6/PmH88Pbj5Re2xBHMdl/fT4r1dDTkKD7Qr0GaEZKY23bfbn1/H8WOtjKt/Nwq0ijhfqw7n30/bm3ttCkNkawEN/qlOanxSQNvXOrckhu1qJh4ieOxIYgNY+RrPVi7dRpTXFpO/awfgdMJc4Ta1PkzPOKEvbk/zZ7MzPEGWv5KULufu+hPL5osjyKyDbDoTPIGU/S7JXTbXr+xu+0vcme0x2qAiZCpxg2Q==",
+        "SigningCertURL" : "https://sns.us-east-1.amazonaws.com/SimpleNotificationService-a86cb10b4e1f29c941702d737128f7b6.pem",
+        "UnsubscribeURL" : "https://sns.us-east-1.amazonaws.com/?Action=Unsubscribe&SubscriptionArn=arn:aws:sns:us-east-1:223237870883:test-sns:a0c4dfc9-526f-4e43-8186-10b16ffb3337",
+        "MessageAttributes" : {
+          "RecordOwner" : {"Type":"String","Value":"14730217-d302-4695-86ce-b86bc58dd59c"},
+          "Version" : {"Type":"String","Value":"2020-04-23"},
+          "Source" : {"Type":"String","Value":"arn:aws:lambda:us-east-1:1918863258:function:test"},
+          "DomainCommand" : {"Type":"String","Value":"create-workbook"}
+        }
+      }
+    }
+  ]
+}
