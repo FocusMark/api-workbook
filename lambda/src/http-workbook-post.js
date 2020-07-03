@@ -112,7 +112,7 @@ class App {
 
         let domainModelParameter = headers['Content-Type']
             .split(';')
-            .filter(element => element.includes('domain-model='));
+            .filter(element => element.includes('domain-command='));
             
         if (domainModelParameter.length == 0) {
             throw 'domain-model parameter is required on Content-Type.';
